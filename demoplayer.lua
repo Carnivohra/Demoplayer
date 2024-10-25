@@ -2,10 +2,11 @@
 -- visit my github repository: github.com/carnivohra/demoplayer
 
 -- initialize vars
-local demoplayer = {
+demoplayer = {
     memory = {},
     constants = {
         demos_path = "demos"
+        demo_format = ".dem2d"
     }
 }
 
@@ -22,9 +23,9 @@ function demoplayer:record(name)
     if name == nil then name = os.date("%Y-%m-%d_%H-%M-%S") end 
 
     -- create demos folder
-    os.execute("MKDIR " .. self.constants.demos_path) -- i need a better solution for this ... 
+    os.execute("mkdir" .. self.constants.demos_path) -- i need a better solution for this ... 
     -- file_name should be like "demos/mydemo.dem2d"
-    local file_name = self.constants.demos_path .. "/" .. name .. ".dem2d"
+    local file_name = self.constants.demos_path .. "/" .. name .. self.constants.demo_format
     -- index for file_name expandation in case there is already a demo named the same
     local i = 0
 
@@ -33,7 +34,7 @@ function demoplayer:record(name)
         i = i + 1 -- first index is "1"
         -- if "demos/mydemo.dem2d" already exists then file_name should be like "demos/mydemo-1.dem2d"
         -- even if this file already exists then file_name should be like "demos/mydemo-2.dem2d" and so on ...
-        file_name = self.constants.demos_path .. "/" .. name .. "-" .. i .. ".dem2d"
+        file_name = self.constants.demos_path .. "/" .. name .. "-" .. i .. self.constants.demo_format
     end
 
     -- open stream to file 
@@ -304,9 +305,26 @@ function demoplayer:decode(data)
         local value_string, data = self:cut_out(data, 1)
         if value_string == "0" then return false end
         if value_string == "1" then return true end 
+    
+    elseif _type == "number" then
+        local length_length_string, data = self:cut_out(data, 1)
+        local length_string, data = self:cut_out(data, tonumber(length_length))
+        local value_string = self:cut_out(data, tonumber(length))
+        local value = tonumber(value_string)
+
+        if value == nil then return print("Failed to decode data.") end
+        return value
+
+    elseif _type == "table" then
+        local field_length_length, data = self:cut_out(data, 1)
+        local field_length, data = self:cut_out(data, field_length_length)
+
+        for i, field_length do
+            value_string, data = self:cut_out(data, )
+        end
     end
 
-    if _type == "number"
+
 end
 
 function demoplayer:cut_out(data, length)
