@@ -2,12 +2,9 @@
 -- visit my github repository: github.com/carnivohra/demoplayer
 
 -- initialize vars
-demoplayer = {
-    memory = {},
-    constants = {
-        demos_path = "demos"
-        demo_format = ".dem2d"
-    }
+local demoplayer = {
+    constants = { demos_path = "demos", demo_format = ".dem2d" },
+    memory = {}
 }
 
 -- for recording
@@ -15,64 +12,71 @@ function demoplayer:record(name)
     -- filter for a playing demoplayer
     if self.state == "playing" then
         -- stop execution
-        return print("Can't record during demo playback.") -- print error in console
+        return print("Can't record during demo playback.") -- print error in the console
     elseif self.state == "recording" then self:stop() end -- stop recording previous demo
 
-    -- name schould be the current date and time in a format like "year-month-day_hour-minute-second"
+    -- if name was not set customly then name schould be the current date and time 
+    -- formated like "year-month-day_hour-minute-second"
     -- for an example:"2012-11-28_18-56-29"
-    if name == nil then name = os.date("%Y-%m-%d_%H-%M-%S") end 
+    if name == nil then name = os.date("%Y-%m-%d_%H-%M-%S") end
 
     -- create demos folder
-    os.execute("mkdir" .. self.constants.demos_path) -- i need a better solution for this ... 
+    -- maybe there is a better solution as using os.execute
+    -- the annoying problem is, that opens an external terminal
+    os.execute("mkdir " .. self.constants.demos_path)
     -- file_name should be like "demos/mydemo.dem2d"
     local file_name = self.constants.demos_path .. "/" .. name .. self.constants.demo_format
     -- index for file_name expandation in case there is already a demo named the same
     local i = 0
 
-    -- while file with file_name exists
+    -- while file with file_name already exists
     while self:file_exists(file_name) do
         i = i + 1 -- first index is "1"
-        -- if "demos/mydemo.dem2d" already exists then file_name should be like "demos/mydemo-1.dem2d"
-        -- even if this file already exists then file_name should be like "demos/mydemo-2.dem2d" and so on ...
+        -- file_name should be like "demos/mydemo-1.dem2d"
+        -- even if this file already exists then file_name should be like "demos/mydemo-2.dem2d" and so on
         file_name = self.constants.demos_path .. "/" .. name .. "-" .. i .. self.constants.demo_format
     end
 
     -- open stream to file 
     local stream = io.open(file_name, "wb")
-    -- put the file into the memory to get access from outside
+    -- put the file contained with the stream into the memory to get access outside this function
+    -- it is better than open a stream every time i need to access the file, because of performance
     self.memory.file = { name = file_name, stream = stream }
     self.state = "recording" -- set state to recording
-    print("Recording to " .. file_name .. ".")
+    print("Recording to '" .. file_name .. '".")
     
     -- current game data
     local data = self:current_data()
-    -- write game data to demo file
+    -- write the game data into the current demo file
     self:write(data)
+    -- TODO: log gameplay
 end
 
 function demoplayer:stop()
+    -- filter for nothing to stop
     if self.state == nil then
          -- stop execution
-        return print("No recording or demo playback is currently running.")
+        return print("No record or demo playback is currently running.") -- print error in the console
     end
 
-    -- cache noch leeren lassen vorm stream close
-    local stream = self.memory.file.stream
-    
-    if stream ~= nil then stream:close() end
+    local file = self.memory.file
+
+    -- TODO: clear cache before closing stream
+    if file.stream ~= nil then file.stream:close() end
 
     self.memory = {}
     self.state = nil
     print("Completed demo.")
+    return file.name
 end
 
-demoplayer.version = "0.1"
+demoplayer.version = "0.2 DEV"
 
 function demoplayer:current_data()
     return { 
         demoplayer_version = self.version,
         cs2d_version = game("version"), 
-        environment = self:current_environment() 
+        environment = self:current_environment()
     }
 end
 
@@ -87,24 +91,23 @@ demoplayer.constants.maps_path = "maps"
 demoplayer.constants.tile_set_path = "gfx/tiles"
 
 function demoplayer:current_map()
-    local name = map("name")
-    local map = {
-        name = name,
+    local _map = {
+        name = map("name"),
         files = {
-            info = { name = self.constants.maps_path .. "/" .. name .. ".txt", raw },
-            map = { name = self.constants.maps_path .. "/" .. name .. ".map", raw },
-            tile_set = { name = self.constants.tile_set_path .. "/" .. map("tileset"), raw },
-            tile_set_ini = { name = (self.constants.tile_set_path .. "/" .. map("tileset")):sub(0, -5) .. ".inf", raw }
+            info = { name = self.constants.maps_path .. "/" .. map("name") .. ".txt", raw = "" },
+            map = { name = self.constants.maps_path .. "/" .. map("name") .. ".map", raw = "" },
+            tile_set = { name = self.constants.tile_set_path .. "/" .. map("tileset"), raw = "" },
+            tile_set_ini = { name = (self.constants.tile_set_path .. "/" .. map("tileset")):sub(0, -5) .. ".inf", raw = "" }
         }
     }   
 
-    for i, file in pairs(map.files) do
+    for i, file in pairs(_map.files) do
         if self:file_exists(file.name) then
-            file.raw = self:read_file(file.name)
-        else map.files[i] = nil end
+            -- self:read_file(file.name)
+        else _map.files[i] = nil end
     end
 
-    return map
+    return _map
 end
 
 function demoplayer:read_file(file_name)
@@ -156,7 +159,7 @@ function demoplayer:current_game_entities_players()
 
     for i = 1, #online_ids do
         local id = online_ids[i]
-        players[#players + 1] = self:current_player(id)
+        players[id] = self:current_player(id)
     end
 
     return players
@@ -198,7 +201,7 @@ function demoplayer:current_player(id)
             unit = player(id, "look")
         },
         health = {
-            current = player(id, "haelth"),
+            current = player(id, "health"),
             max = player(id, "maxhealth")
         },
         armor = player(id, "armor"),
@@ -237,33 +240,36 @@ demoplayer.constants.encoder = {
     types = { "nil", "boolean", "number", "string", "function", "userdata", "thread", "table" }
 }
 
-function demoplayer:encode(field) 
-    local field_type = type(field)
+function demoplayer:encode(data) 
+    local data_type = type(data)
     local type_index
 
     for i = 1, #self.constants.encoder.types do
         local _type = self.constants.encoder.types[i]
-
-        if _type == field_type then type_index = i end
+        if _type == data_type then type_index = i end
     end
 
     local encoded = tostring(type_index)
     
-    if type(field) == "boolean" then 
-        encoded = encoded .. ( field and "1" or "0" )
+    if type(data) == "boolean" then 
+        encoded = encoded .. ( data and "1" or "0" )
 
-    elseif type(field) == "number" or type(field) == "string" then 
-        local field_length = #tostring(field)
-        local field_length_length = #tostring(field_length)
-        encoded = encoded .. field_length_length .. field_length .. field
+    elseif type(data) == "number" or type(data) == "string" then 
+        local data_length = #tostring(data)
+        local data_length_length = #tostring(data_length)
+        encoded = encoded .. data_length_length .. data_length .. data
 
-    elseif type(field) == "table" then
-        local field_length = #field
-        local field_length_length = #tostring(field_length)
-        encoded = encoded .. field_length_length .. field_length
+    elseif type(data) == "table" then
+        local length = 0
 
-        for i, field_field in pairs(field) do
-            encoded = encoded .. self:encode(field_field)
+        for _ in pairs(data) do length = length + 1 end
+
+        local data_length_length = #tostring(length)
+        encoded = encoded .. data_length_length .. length
+
+        for i, data_data in pairs(data) do
+            encoded = encoded .. self:encode(i)
+            encoded = encoded .. self:encode(data_data)
         end
     end
 
@@ -272,14 +278,15 @@ end
 
 function demoplayer:load(file_name)
     if not self:file_exists(file_name) then
-        return print("Could not open file " .. file_name .. ".")
+        return print("Could not open file '" .. file_name .. "'.")
     end
 
     if self.state ~= nil then self:stop() end
     
-    local data = self:read_file(file_name)
-
-    -- decode data
+    local encoded = self:read_file(file_name)
+    local data = self:decode(encoded)
+    self.memory.data = data
+    print("Demo '" .. file_name .. "' has been loaded.")
 end
 
 function demoplayer:decode(data)
@@ -288,43 +295,37 @@ function demoplayer:decode(data)
 
     local type_index_string, data = self:cut_out(data, 1)
     local type_index = tonumber(type_index_string)
-
-    if type_index == nil then 
-        return print("Failed to decode data.")
-    end
-
     local _type = self.constants.encoder.types[type_index]
 
-    if _type == "nil" then return nil end
-
-    if #data == 0 then 
-        return print("Failed to decode data.")
-    end
+    if _type == "nil" then return nil, data end
 
     if _type == "boolean" then
         local value_string, data = self:cut_out(data, 1)
-        if value_string == "0" then return false end
-        if value_string == "1" then return true end 
-    
-    elseif _type == "number" then
-        local length_length_string, data = self:cut_out(data, 1)
-        local length_string, data = self:cut_out(data, tonumber(length_length))
-        local value_string = self:cut_out(data, tonumber(length))
-        local value = tonumber(value_string)
+        if value_string == "0" then return false, data end
+        if value_string == "1" then return true, data end
 
-        if value == nil then return print("Failed to decode data.") end
-        return value
+    elseif _type == "number" or _type == "string" then
+        local length_length_string, data = self:cut_out(data, 1)
+        local length_string, data = self:cut_out(data, tonumber(length_length_string))
+        local value, data = self:cut_out(data, tonumber(length_string))
+        if _type == "number" then value = tonumber(value) end
+        return value, data
 
     elseif _type == "table" then
-        local field_length_length, data = self:cut_out(data, 1)
-        local field_length, data = self:cut_out(data, field_length_length)
+        local length_length_string, data = self:cut_out(data, 1)
+        local length_string, data = self:cut_out(data, tonumber(length_length_string))
+        local length = tonumber(length_string)
+        local _table = {}
 
-        for i, field_length do
-            value_string, data = self:cut_out(data, )
+        for i = 1, length do
+            local index
+            index, data = self:decode(data)
+            value, data = self:decode(data)
+            _table[index] = value
         end
+
+        return _table, data
     end
-
-
 end
 
 function demoplayer:cut_out(data, length)
@@ -333,10 +334,10 @@ function demoplayer:cut_out(data, length)
     local cutted = ""
 
     for i = 1, length do
-        cutted = cutted .. data[i]
+        cutted = cutted .. data:sub(i, i)
     end
 
-    return cutted, data:gsub(length)
+    return cutted, data:sub(length + 1, -1)
 end
 
 function demoplayer:file_exists(file_name)
