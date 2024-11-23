@@ -2,7 +2,7 @@
 -- visit my github repository: github.com/carnivohra/demoplayer
 
 -- initialize vars
-local demoplayer = {
+demoplayer = {
     constants = { demos_path = "demos", demo_format = ".dem2d" },
     memory = {}
 }
@@ -43,7 +43,7 @@ function demoplayer:record(name)
     -- it is better than open a stream every time i need to access the file, because of performance
     self.memory.file = { name = file_name, stream = stream }
     self.state = "recording" -- set state to recording
-    print("Recording to '" .. file_name .. '".")
+    print("Recording to '" .. file_name .. "'.")
     
     -- current game data
     local data = self:current_data()
@@ -346,4 +346,30 @@ function demoplayer:file_exists(file_name)
     if sum == nil then return nil end
     if sum == "" then return false end
     return true
+end
+
+function demoplayer.on_parse(text)
+    print(text)
+    local parameter = demoplayer:split_string(text)
+
+    if parameter[1] == "record" then
+        local file_name = parameter[2]
+        demoplayer:record(file_name)
+        return 2
+
+    elseif parameter[1] == "stop" then 
+        demoplayer:stop() 
+        return 2
+    end
+end
+addhook("parse", "demoplayer.on_parse")
+
+function demoplayer:split_string(text)
+    local tokens = {}
+    
+    for token in string.gmatch(text, "[^%s]+") do
+        tokens[#tokens + 1] = token
+    end
+
+    return tokens
 end
